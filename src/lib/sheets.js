@@ -86,17 +86,24 @@ function rowToAbsence(row, rowNumber) {
   };
 }
 
+// Detecta si una fila es la cabecera (por si la hoja la tiene en la fila 1).
+function isHeaderRow(row) {
+  return (row?.[0] || '').trim().toLowerCase() === 'id';
+}
+
 /** Lee todas las ausencias. Filtro opcional por rango de fechas (YYYY-MM-DD). */
 export async function getAbsences({ from, to } = {}) {
   const sheets = sheetsClient();
+  // Leemos desde la fila 1 para no depender de que exista una cabecera:
+  // así los números de fila cuadran aunque el primer dato esté en la fila 1.
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: AUSENCIAS_RANGE,
+    range: `${TAB_AUSENCIAS}!A1:I`,
   });
   const rows = res.data.values || [];
   let list = rows
-    .map((row, i) => rowToAbsence(row, i + 2)) // +2 porque empieza en A2
-    .filter((a) => a.id); // ignora filas vacías
+    .map((row, i) => rowToAbsence(row, i + 1)) // fila real = índice + 1
+    .filter((a) => a.id && !isHeaderRow([a.id])); // ignora vacías y la cabecera
 
   if (from) list = list.filter((a) => a.fecha >= from);
   if (to) list = list.filter((a) => a.fecha <= to);
@@ -139,14 +146,15 @@ export async function createAbsence(data) {
 }
 
 async function findRowById(sheets, id) {
+  // Leemos desde A1 (fila real = índice + 1) para que cuadre haya o no cabecera.
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${TAB_AUSENCIAS}!A2:A`,
+    range: `${TAB_AUSENCIAS}!A1:A`,
   });
   const ids = res.data.values || [];
   const index = ids.findIndex((r) => r[0] === id);
   if (index === -1) return null;
-  return index + 2; // número de fila real
+  return index + 1; // número de fila real
 }
 
 /** Actualiza una ausencia existente identificada por id. */
