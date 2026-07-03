@@ -154,6 +154,45 @@ export async function createAbsence(data) {
   return { id, ...data, horas: horas || null, diasEquivalentes: dias, createdAt };
 }
 
+/**
+ * Crea varias ausencias de una vez (una por fecha), p. ej. un rango de días
+ * seguidos. Escribe todas las filas en una sola llamada.
+ */
+export async function createAbsencesRange(data, fechas) {
+  const sheets = sheetsClient();
+  const jornada = getWorkdayHours();
+  const dias = calcDiasEquivalentes(data.tipo, data.horas, jornada);
+  const createdAt = new Date().toISOString();
+  const horas = data.tipo === 'horas' ? Number(data.horas) : '';
+
+  const values = fechas.map((fecha) => [
+    randomUUID(),
+    data.nombre,
+    fecha,
+    data.tipo,
+    horas,
+    data.categoria,
+    data.nota || '',
+    dias,
+    createdAt,
+  ]);
+
+  const colA = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_AUSENCIAS}!A1:A`,
+  });
+  const targetRow = (colA.data.values || []).length + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_AUSENCIAS}!A${targetRow}:I${targetRow + values.length - 1}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values },
+  });
+
+  return { created: values.length, diasEquivalentesTotal: dias * values.length };
+}
+
 async function findRowById(sheets, id) {
   // Leemos desde A1 (fila real = índice + 1) para que cuadre haya o no cabecera.
   const res = await sheets.spreadsheets.values.get({

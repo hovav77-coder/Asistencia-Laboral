@@ -6,11 +6,27 @@ import { TIPO_LABEL, TIPOS, calcDiasEquivalentes } from '@/lib/calc';
 const emptyForm = {
   nombre: '',
   fecha: '',
+  fechaFin: '',
   tipo: 'completo',
   horas: '',
   categoria: '',
   nota: '',
 };
+
+// Cuenta los días del rango [desde, hasta] en el navegador (para el aviso).
+function contarDias(desde, hasta, excluirFinde) {
+  if (!desde || !hasta || hasta < desde) return 0;
+  const [y1, m1, d1] = desde.split('-').map(Number);
+  const [y2, m2, d2] = hasta.split('-').map(Number);
+  let count = 0;
+  for (let t = Date.UTC(y1, m1 - 1, d1); t <= Date.UTC(y2, m2 - 1, d2); t += 86400000) {
+    const dow = new Date(t).getUTCDay();
+    if (excluirFinde && (dow === 0 || dow === 6)) continue;
+    count++;
+    if (count > 62) break;
+  }
+  return count;
+}
 
 export default function AbsenceForm({
   employees,
@@ -24,6 +40,8 @@ export default function AbsenceForm({
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [esRango, setEsRango] = useState(false);
+  const [excluirFinde, setExcluirFinde] = useState(false);
   const [showNewPerson, setShowNewPerson] = useState(false);
   const [newPerson, setNewPerson] = useState('');
   const [personError, setPersonError] = useState('');
@@ -85,6 +103,11 @@ export default function AbsenceForm({
     try {
       const payload = { ...form };
       if (editing) payload.id = editing.id;
+      if (!editing && esRango) {
+        payload.excluirFinde = excluirFinde;
+      } else {
+        delete payload.fechaFin;
+      }
       const res = await fetch('/api/absences', {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,6 +118,7 @@ export default function AbsenceForm({
         setError(data.error || 'No se pudo guardar');
       } else {
         setForm(emptyForm);
+        setEsRango(false);
         onSaved?.();
       }
     } catch {
@@ -103,6 +127,8 @@ export default function AbsenceForm({
       setSaving(false);
     }
   }
+
+  const diasRango = esRango ? contarDias(form.fecha, form.fechaFin, excluirFinde) : 1;
 
   return (
     <div className="card">
@@ -169,7 +195,24 @@ export default function AbsenceForm({
             )}
           </div>
           <div className="field">
-            <label>Fecha</label>
+            <label>
+              {esRango ? 'Desde' : 'Fecha'}
+              {!editing && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setEsRango((v) => !v);
+                      set('fechaFin', '');
+                    }}
+                  >
+                    {esRango ? 'un solo día' : '+ varios días seguidos'}
+                  </button>
+                </>
+              )}
+            </label>
             <input
               type="date"
               value={form.fecha}
@@ -178,6 +221,43 @@ export default function AbsenceForm({
             />
           </div>
         </div>
+
+        {esRango && !editing && (
+          <div className="row">
+            <div className="field">
+              <label>Hasta (incluido)</label>
+              <input
+                type="date"
+                value={form.fechaFin}
+                onChange={(e) => set('fechaFin', e.target.value)}
+                min={form.fecha || undefined}
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Fines de semana</label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontWeight: 400,
+                  fontSize: 14,
+                  color: 'var(--text)',
+                  marginTop: 10,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={excluirFinde}
+                  onChange={(e) => setExcluirFinde(e.target.checked)}
+                  style={{ width: 'auto' }}
+                />
+                Excluir sábados y domingos
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="row">
           <div className="field">
@@ -231,13 +311,30 @@ export default function AbsenceForm({
         </div>
 
         <p className="muted">
-          Equivalente en días:{' '}
-          <span className="badge">{dias} día(s)</span>
+          {esRango && !editing ? (
+            <>
+              Se registrarán <span className="badge">{diasRango} día(s)</span>{' '}
+              — equivalente total:{' '}
+              <span className="badge">
+                {Math.round(dias * diasRango * 100) / 100} día(s)
+              </span>
+            </>
+          ) : (
+            <>
+              Equivalente en días: <span className="badge">{dias} día(s)</span>
+            </>
+          )}
         </p>
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn" type="submit" disabled={saving}>
-            {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Registrar'}
+            {saving
+              ? 'Guardando…'
+              : editing
+              ? 'Guardar cambios'
+              : esRango
+              ? `Registrar ${diasRango || ''} día(s)`
+              : 'Registrar'}
           </button>
           {editing && (
             <button type="button" className="btn secondary" onClick={onCancel}>

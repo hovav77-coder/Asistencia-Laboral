@@ -7,6 +7,7 @@ import RecordsTable from './RecordsTable';
 import MonthlySummary from './MonthlySummary';
 import AnnualSummary from './AnnualSummary';
 import Charts from './Charts';
+import EmployeesManager from './EmployeesManager';
 
 const TABS = [
   { key: 'registrar', label: 'Registrar' },
@@ -14,6 +15,7 @@ const TABS = [
   { key: 'mensual', label: 'Resumen mensual' },
   { key: 'anual', label: 'Resumen anual' },
   { key: 'graficos', label: 'Gráficos' },
+  { key: 'empleados', label: 'Empleados' },
 ];
 
 export default function Dashboard({ workdayHours }) {
@@ -31,6 +33,11 @@ export default function Dashboard({ workdayHours }) {
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
   const [annualYear, setAnnualYear] = useState(now.getFullYear());
+
+  const loadEmployees = useCallback(async () => {
+    const res = await fetch('/api/employees').then((r) => r.json()).catch(() => ({}));
+    setEmployees(res.employees || []);
+  }, []);
 
   const loadAbsences = useCallback(async (f = filter) => {
     setLoading(true);
@@ -142,6 +149,10 @@ export default function Dashboard({ workdayHours }) {
       )}
 
       {tab === 'graficos' && <Charts absences={absences} year={annualYear} />}
+
+      {tab === 'empleados' && (
+        <EmployeesManager employees={employees} onChanged={loadEmployees} />
+      )}
 
       {(tab === 'mensual' || tab === 'anual' || tab === 'graficos') &&
         (filter.from || filter.to) && (
