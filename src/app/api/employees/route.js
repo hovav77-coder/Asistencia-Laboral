@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { isAuthenticated } from '@/lib/guard';
-import { getEmployees, addEmployee, deleteEmployee } from '@/lib/sheets';
+import {
+  getEmployees,
+  addEmployee,
+  renameEmployee,
+  deleteEmployee,
+} from '@/lib/sheets';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,6 +43,33 @@ export async function POST(req) {
     return NextResponse.json({ nombre: created }, { status: 201 });
   } catch (e) {
     const status = e.message.includes('ya existe') ? 409 : 500;
+    return NextResponse.json({ error: e.message }, { status });
+  }
+}
+
+export async function PUT(req) {
+  const unauth = await requireAuth();
+  if (unauth) return unauth;
+
+  const body = await req.json().catch(() => null);
+  const nombre = (body?.nombre || '').trim();
+  const nuevoNombre = (body?.nuevoNombre || '').trim();
+  if (!nombre || !nuevoNombre) {
+    return NextResponse.json(
+      { error: 'Faltan el nombre actual y el nuevo' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const result = await renameEmployee(nombre, nuevoNombre);
+    return NextResponse.json(result);
+  } catch (e) {
+    const status = e.message.includes('no encontrado')
+      ? 404
+      : e.message.includes('Ya existe')
+      ? 409
+      : 500;
     return NextResponse.json({ error: e.message }, { status });
   }
 }

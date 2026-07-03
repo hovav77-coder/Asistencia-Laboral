@@ -151,7 +151,13 @@ export default function Dashboard({ workdayHours }) {
       {tab === 'graficos' && <Charts absences={absences} year={annualYear} />}
 
       {tab === 'empleados' && (
-        <EmployeesManager employees={employees} onChanged={loadEmployees} />
+        <EmployeesManager
+          employees={employees}
+          onChanged={() => {
+            loadEmployees();
+            loadAbsences(); // un renombrado también actualiza el historial
+          }}
+        />
       )}
 
       {(tab === 'mensual' || tab === 'anual' || tab === 'graficos') &&

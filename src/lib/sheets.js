@@ -314,6 +314,74 @@ export async function addEmployee(nombre) {
   return clean;
 }
 
+/**
+ * Renombra un empleado en la pestaña Empleados y actualiza su nombre en
+ * TODAS sus ausencias registradas (para que el historial no quede partido
+ * entre el nombre viejo y el nuevo).
+ */
+export async function renameEmployee(nombre, nuevoNombre) {
+  const oldClean = (nombre || '').trim();
+  const newClean = (nuevoNombre || '').trim();
+  if (!oldClean || !newClean) throw new Error('El nombre no puede estar vacío');
+  if (oldClean === newClean) return { nombre: newClean, actualizados: 0 };
+
+  const sheets = sheetsClient();
+
+  // 1) Localizar al empleado en la lista.
+  const emp = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_EMPLEADOS}!A1:A`,
+  });
+  const empRows = emp.data.values || [];
+  const empIndex = empRows.findIndex(
+    (r) => (r[0] || '').trim().toLowerCase() === oldClean.toLowerCase()
+  );
+  if (empIndex === -1) throw new Error('Empleado no encontrado');
+
+  // 2) Evitar duplicados (salvo que sea la misma fila, p. ej. corregir mayúsculas).
+  const dupIndex = empRows.findIndex(
+    (r) => (r[0] || '').trim().toLowerCase() === newClean.toLowerCase()
+  );
+  if (dupIndex !== -1 && dupIndex !== empIndex) {
+    throw new Error('Ya existe otro empleado con ese nombre');
+  }
+
+  // 3) Renombrar en la lista.
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_EMPLEADOS}!A${empIndex + 1}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[newClean]] },
+  });
+
+  // 4) Actualizar el nombre en todas sus ausencias (columna B).
+  const abs = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_AUSENCIAS}!B1:B`,
+  });
+  const absRows = abs.data.values || [];
+  const updates = [];
+  absRows.forEach((r, i) => {
+    if ((r[0] || '').trim().toLowerCase() === oldClean.toLowerCase()) {
+      updates.push({
+        range: `${TAB_AUSENCIAS}!B${i + 1}`,
+        values: [[newClean]],
+      });
+    }
+  });
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: updates,
+      },
+    });
+  }
+
+  return { nombre: newClean, actualizados: updates.length };
+}
+
 /** Elimina un empleado de la pestaña Empleados (borra su fila). */
 export async function deleteEmployee(nombre) {
   const clean = (nombre || '').trim();
