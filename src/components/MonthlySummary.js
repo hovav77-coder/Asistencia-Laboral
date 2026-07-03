@@ -20,8 +20,14 @@ function chips(obj) {
 }
 
 export default function MonthlySummary({ absences, year, month, onYear, onMonth }) {
-  const { people, totalDias, registros } = monthlySummary(absences, year, month);
+  const [persona, setPersona] = useState('');
   const [exporting, setExporting] = useState(false);
+
+  const personas = [...new Set(absences.map((a) => a.nombre))].sort((a, b) =>
+    a.localeCompare(b, 'es')
+  );
+  const base = persona ? absences.filter((a) => a.nombre === persona) : absences;
+  const { people, totalDias, registros } = monthlySummary(base, year, month);
 
   async function handleExport() {
     setExporting(true);
@@ -40,8 +46,8 @@ export default function MonthlySummary({ absences, year, month, onYear, onMonth 
         return row;
       });
 
-      // Hoja 2: detalle de los registros del mes.
-      const detalle = absences
+      // Hoja 2: detalle de los registros del mes (respeta el filtro de persona).
+      const detalle = base
         .filter((a) => {
           const { year: y, month: m } = parseYearMonth(a.fecha);
           return y === year && m === month;
@@ -58,7 +64,8 @@ export default function MonthlySummary({ absences, year, month, onYear, onMonth 
         }));
 
       const mes = String(month + 1).padStart(2, '0');
-      await exportToExcel(`Resumen_${year}-${mes}.xlsx`, [
+      const suffix = persona ? `_${persona.replace(/\s+/g, '_')}` : '';
+      await exportToExcel(`Resumen_${year}-${mes}${suffix}.xlsx`, [
         { name: `Resumen ${MESES[month]} ${year}`, rows: resumen },
         { name: 'Detalle', rows: detalle },
       ]);
@@ -81,6 +88,21 @@ export default function MonthlySummary({ absences, year, month, onYear, onMonth 
       </div>
 
       <div className="toolbar">
+        <div className="field">
+          <label>Persona</label>
+          <select
+            value={persona}
+            onChange={(e) => setPersona(e.target.value)}
+            style={{ minWidth: 160 }}
+          >
+            <option value="">— Todas —</option>
+            {personas.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="field">
           <label>Mes</label>
           <select value={month} onChange={(e) => onMonth(Number(e.target.value))}>

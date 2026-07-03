@@ -5,9 +5,15 @@ import { MESES, annualSummary } from '@/lib/summary';
 import { exportToExcel } from '@/lib/exportExcel';
 
 export default function AnnualSummary({ absences, year, onYear }) {
-  const { people, teamByMonth, total } = annualSummary(absences, year);
-  const mesesCortos = MESES.map((m) => m.slice(0, 3));
+  const [persona, setPersona] = useState('');
   const [exporting, setExporting] = useState(false);
+
+  const personas = [...new Set(absences.map((a) => a.nombre))].sort((a, b) =>
+    a.localeCompare(b, 'es')
+  );
+  const base = persona ? absences.filter((a) => a.nombre === persona) : absences;
+  const { people, teamByMonth, total } = annualSummary(base, year);
+  const mesesCortos = MESES.map((m) => m.slice(0, 3));
 
   async function handleExport() {
     setExporting(true);
@@ -19,9 +25,10 @@ export default function AnnualSummary({ absences, year, onYear }) {
         return row;
       };
       const rows = people.map((p) => toRow(p.nombre, p.months, p.total));
-      rows.push(toRow('EQUIPO', teamByMonth, total));
+      if (!persona) rows.push(toRow('EQUIPO', teamByMonth, total));
 
-      await exportToExcel(`Resumen_anual_${year}.xlsx`, [
+      const suffix = persona ? `_${persona.replace(/\s+/g, '_')}` : '';
+      await exportToExcel(`Resumen_anual_${year}${suffix}.xlsx`, [
         { name: `Resumen anual ${year}`, rows },
       ]);
     } finally {
@@ -43,6 +50,21 @@ export default function AnnualSummary({ absences, year, onYear }) {
       </div>
 
       <div className="toolbar">
+        <div className="field">
+          <label>Persona</label>
+          <select
+            value={persona}
+            onChange={(e) => setPersona(e.target.value)}
+            style={{ minWidth: 160 }}
+          >
+            <option value="">— Todas —</option>
+            {personas.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="field">
           <label>Año</label>
           <input
@@ -96,6 +118,7 @@ export default function AnnualSummary({ absences, year, onYear }) {
                 </tr>
               ))}
             </tbody>
+            {!persona && (
             <tfoot>
               <tr>
                 <td style={{ fontWeight: 700 }}>Equipo</td>
@@ -107,6 +130,7 @@ export default function AnnualSummary({ absences, year, onYear }) {
                 <td style={{ textAlign: 'center', fontWeight: 700 }}>{total}</td>
               </tr>
             </tfoot>
+            )}
           </table>
         </div>
       )}
