@@ -6,7 +6,21 @@ import { TIPO_LABEL } from '@/lib/calc';
 export default function RecordsTable({ absences, loading, onEdit, onDeleted, onFilter }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [persona, setPersona] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+
+  // Nombres presentes en los registros cargados (incluye históricos).
+  const personas = [...new Set(absences.map((a) => a.nombre))].sort((a, b) =>
+    a.localeCompare(b, 'es')
+  );
+
+  const visibles = persona
+    ? absences.filter((a) => a.nombre === persona)
+    : absences;
+
+  const totalDias =
+    Math.round(visibles.reduce((s, a) => s + (a.diasEquivalentes || 0), 0) * 100) /
+    100;
 
   async function handleDelete(a) {
     if (!confirm(`¿Borrar la ausencia de ${a.nombre} del ${a.fecha}?`)) return;
@@ -28,6 +42,21 @@ export default function RecordsTable({ absences, loading, onEdit, onDeleted, onF
 
       <div className="toolbar">
         <div className="field">
+          <label>Persona</label>
+          <select
+            value={persona}
+            onChange={(e) => setPersona(e.target.value)}
+            style={{ minWidth: 160 }}
+          >
+            <option value="">— Todas —</option>
+            {personas.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
           <label>Desde</label>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
@@ -43,6 +72,7 @@ export default function RecordsTable({ absences, loading, onEdit, onDeleted, onF
           onClick={() => {
             setFrom('');
             setTo('');
+            setPersona('');
             onFilter?.({ from: '', to: '' });
           }}
         >
@@ -50,9 +80,25 @@ export default function RecordsTable({ absences, loading, onEdit, onDeleted, onF
         </button>
       </div>
 
+      {!loading && visibles.length > 0 && (
+        <p className="muted" style={{ marginTop: 0 }}>
+          {persona ? (
+            <>
+              <strong>{persona}</strong>: {visibles.length} registro(s) —{' '}
+              <span className="badge">{totalDias} día(s) equiv.</span>
+            </>
+          ) : (
+            <>
+              {visibles.length} registro(s) —{' '}
+              <span className="badge">{totalDias} día(s) equiv.</span>
+            </>
+          )}
+        </p>
+      )}
+
       {loading ? (
         <p className="muted">Cargando…</p>
-      ) : absences.length === 0 ? (
+      ) : visibles.length === 0 ? (
         <p className="muted">No hay registros para el filtro seleccionado.</p>
       ) : (
         <div className="table-wrap">
@@ -69,7 +115,7 @@ export default function RecordsTable({ absences, loading, onEdit, onDeleted, onF
               </tr>
             </thead>
             <tbody>
-              {absences.map((a) => (
+              {visibles.map((a) => (
                 <tr key={a.id}>
                   <td>{a.fecha}</td>
                   <td>{a.nombre}</td>
