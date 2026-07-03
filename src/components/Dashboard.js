@@ -111,6 +111,9 @@ export default function Dashboard({ workdayHours }) {
           editing={editing}
           onSaved={handleSaved}
           onCancel={() => setEditing(null)}
+          onEmployeeAdded={(nombre) =>
+            setEmployees((list) => (list.includes(nombre) ? list : [...list, nombre]))
+          }
         />
       )}
 

@@ -19,10 +19,42 @@ export default function AbsenceForm({
   editing,
   onSaved,
   onCancel,
+  onEmployeeAdded,
 }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showNewPerson, setShowNewPerson] = useState(false);
+  const [newPerson, setNewPerson] = useState('');
+  const [personError, setPersonError] = useState('');
+  const [personSaving, setPersonSaving] = useState(false);
+
+  async function saveNewPerson() {
+    const nombre = newPerson.trim();
+    if (!nombre) return;
+    setPersonError('');
+    setPersonSaving(true);
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPersonError(data.error || 'No se pudo añadir');
+      } else {
+        onEmployeeAdded?.(data.nombre);
+        setForm((f) => ({ ...f, nombre: data.nombre }));
+        setNewPerson('');
+        setShowNewPerson(false);
+      }
+    } catch {
+      setPersonError('Error de conexión');
+    } finally {
+      setPersonSaving(false);
+    }
+  }
 
   useEffect(() => {
     if (editing) {
@@ -79,19 +111,62 @@ export default function AbsenceForm({
       <form onSubmit={onSubmit}>
         <div className="row">
           <div className="field">
-            <label>Persona</label>
-            <select
-              value={form.nombre}
-              onChange={(e) => set('nombre', e.target.value)}
-              required
-            >
-              <option value="">— Selecciona —</option>
-              {employees.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+            <label>
+              Persona{' '}
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setShowNewPerson((v) => !v);
+                  setPersonError('');
+                }}
+              >
+                {showNewPerson ? 'cancelar' : '+ nueva persona'}
+              </button>
+            </label>
+            {showNewPerson ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={newPerson}
+                  onChange={(e) => setNewPerson(e.target.value)}
+                  placeholder="Nombre del empleado…"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      saveNewPerson();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={personSaving || !newPerson.trim()}
+                  onClick={saveNewPerson}
+                >
+                  {personSaving ? '…' : 'Añadir'}
+                </button>
+              </div>
+            ) : (
+              <select
+                value={form.nombre}
+                onChange={(e) => set('nombre', e.target.value)}
+                required
+              >
+                <option value="">— Selecciona —</option>
+                {employees.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            )}
+            {personError && (
+              <p style={{ color: 'var(--danger)', fontSize: 13, margin: '6px 0 0' }}>
+                {personError}
+              </p>
+            )}
           </div>
           <div className="field">
             <label>Fecha</label>

@@ -237,12 +237,80 @@ export async function deleteAbsence(id) {
 /** Lee la lista de empleados desde la pestaña Empleados (columna A). */
 export async function getEmployees() {
   const sheets = sheetsClient();
+  // Desde A1 y filtrando la posible cabecera, para no depender de su existencia.
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${TAB_EMPLEADOS}!A2:A`,
+    range: `${TAB_EMPLEADOS}!A1:A`,
   });
   const rows = res.data.values || [];
-  return rows.map((r) => (r[0] || '').trim()).filter(Boolean);
+  return rows
+    .map((r) => (r[0] || '').trim())
+    .filter((n) => n && n.toLowerCase() !== 'nombre');
+}
+
+/** Añade un empleado nuevo a la pestaña Empleados (primera fila libre). */
+export async function addEmployee(nombre) {
+  const clean = (nombre || '').trim();
+  if (!clean) throw new Error('El nombre no puede estar vacío');
+
+  const sheets = sheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_EMPLEADOS}!A1:A`,
+  });
+  const rows = res.data.values || [];
+  const existing = rows.map((r) => (r[0] || '').trim()).filter(Boolean);
+  if (existing.some((n) => n.toLowerCase() === clean.toLowerCase())) {
+    throw new Error('Ese empleado ya existe en la lista');
+  }
+
+  const targetRow = rows.length + 1;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_EMPLEADOS}!A${targetRow}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[clean]] },
+  });
+
+  return clean;
+}
+
+/** Elimina un empleado de la pestaña Empleados (borra su fila). */
+export async function deleteEmployee(nombre) {
+  const clean = (nombre || '').trim();
+  if (!clean) throw new Error('El nombre no puede estar vacío');
+
+  const sheets = sheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_EMPLEADOS}!A1:A`,
+  });
+  const rows = res.data.values || [];
+  const index = rows.findIndex(
+    (r) => (r[0] || '').trim().toLowerCase() === clean.toLowerCase()
+  );
+  if (index === -1) throw new Error('Empleado no encontrado');
+
+  const gid = await getSheetGid(sheets, TAB_EMPLEADOS);
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: gid,
+              dimension: 'ROWS',
+              startIndex: index, // base 0
+              endIndex: index + 1,
+            },
+          },
+        },
+      ],
+    },
+  });
+
+  return clean;
 }
 
 /** Lee la lista de categorías desde la pestaña Categorias (columna A). */
@@ -250,10 +318,12 @@ export async function getCategories() {
   const sheets = sheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${TAB_CATEGORIAS}!A2:A`,
+    range: `${TAB_CATEGORIAS}!A1:A`,
   });
   const rows = res.data.values || [];
-  const list = rows.map((r) => (r[0] || '').trim()).filter(Boolean);
+  const list = rows
+    .map((r) => (r[0] || '').trim())
+    .filter((c) => c && c.toLowerCase() !== 'categoria');
   // Valores por defecto si la pestaña está vacía.
   return list.length
     ? list
