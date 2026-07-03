@@ -2,12 +2,37 @@
 
 import { useState } from 'react';
 import { TIPO_LABEL } from '@/lib/calc';
+import { exportToExcel } from '@/lib/exportExcel';
 
 export default function RecordsTable({ absences, loading, onEdit, onDeleted, onFilter }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [persona, setPersona] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const rows = [...visibles]
+        .sort((a, b) => (a.fecha < b.fecha ? -1 : 1))
+        .map((a) => ({
+          Fecha: a.fecha,
+          Persona: a.nombre,
+          Tipo: TIPO_LABEL[a.tipo] || a.tipo,
+          Horas: a.horas ?? '',
+          Categoría: a.categoria,
+          'Días equiv.': a.diasEquivalentes,
+          Nota: a.nota || '',
+        }));
+      const suffix = persona ? `_${persona.replace(/\s+/g, '_')}` : '';
+      await exportToExcel(`Registros${suffix}.xlsx`, [
+        { name: 'Registros', rows },
+      ]);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Nombres presentes en los registros cargados (incluye históricos).
   const personas = [...new Set(absences.map((a) => a.nombre))].sort((a, b) =>
@@ -38,7 +63,16 @@ export default function RecordsTable({ absences, loading, onEdit, onDeleted, onF
 
   return (
     <div className="card">
-      <h2>Registros</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h2>Registros</h2>
+        <button
+          className="btn secondary small"
+          onClick={handleExport}
+          disabled={exporting || visibles.length === 0}
+        >
+          {exporting ? 'Exportando…' : '⬇ Exportar a Excel'}
+        </button>
+      </div>
 
       <div className="toolbar">
         <div className="field">

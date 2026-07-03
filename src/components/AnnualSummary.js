@@ -1,14 +1,46 @@
 'use client';
 
+import { useState } from 'react';
 import { MESES, annualSummary } from '@/lib/summary';
+import { exportToExcel } from '@/lib/exportExcel';
 
 export default function AnnualSummary({ absences, year, onYear }) {
   const { people, teamByMonth, total } = annualSummary(absences, year);
   const mesesCortos = MESES.map((m) => m.slice(0, 3));
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const toRow = (nombre, months, tot) => {
+        const row = { Persona: nombre };
+        mesesCortos.forEach((m, i) => (row[m] = months[i] || ''));
+        row.Total = tot;
+        return row;
+      };
+      const rows = people.map((p) => toRow(p.nombre, p.months, p.total));
+      rows.push(toRow('EQUIPO', teamByMonth, total));
+
+      await exportToExcel(`Resumen_anual_${year}.xlsx`, [
+        { name: `Resumen anual ${year}`, rows },
+      ]);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="card">
-      <h2>Resumen anual</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h2>Resumen anual</h2>
+        <button
+          className="btn secondary small"
+          onClick={handleExport}
+          disabled={exporting || people.length === 0}
+        >
+          {exporting ? 'Exportando…' : '⬇ Exportar a Excel'}
+        </button>
+      </div>
 
       <div className="toolbar">
         <div className="field">

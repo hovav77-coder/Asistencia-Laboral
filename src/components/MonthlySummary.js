@@ -1,6 +1,9 @@
 'use client';
 
-import { MESES, monthlySummary } from '@/lib/summary';
+import { useState } from 'react';
+import { MESES, monthlySummary, parseYearMonth } from '@/lib/summary';
+import { TIPO_LABEL } from '@/lib/calc';
+import { exportToExcel } from '@/lib/exportExcel';
 
 function chips(obj) {
   const entries = Object.entries(obj);
@@ -18,10 +21,64 @@ function chips(obj) {
 
 export default function MonthlySummary({ absences, year, month, onYear, onMonth }) {
   const { people, totalDias, registros } = monthlySummary(absences, year, month);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      // Hoja 1: resumen por persona (columnas dinámicas por categoría y tipo).
+      const categorias = [...new Set(people.flatMap((p) => Object.keys(p.porCategoria)))];
+      const tipos = [...new Set(people.flatMap((p) => Object.keys(p.porTipo)))];
+      const resumen = people.map((p) => {
+        const row = {
+          Persona: p.nombre,
+          'Total días': p.totalDias,
+          Registros: p.registros,
+        };
+        categorias.forEach((c) => (row[c] = p.porCategoria[c] ?? ''));
+        tipos.forEach((t) => (row[TIPO_LABEL[t] || t] = p.porTipo[t] ?? ''));
+        return row;
+      });
+
+      // Hoja 2: detalle de los registros del mes.
+      const detalle = absences
+        .filter((a) => {
+          const { year: y, month: m } = parseYearMonth(a.fecha);
+          return y === year && m === month;
+        })
+        .sort((a, b) => (a.fecha < b.fecha ? -1 : 1))
+        .map((a) => ({
+          Fecha: a.fecha,
+          Persona: a.nombre,
+          Tipo: TIPO_LABEL[a.tipo] || a.tipo,
+          Horas: a.horas ?? '',
+          Categoría: a.categoria,
+          'Días equiv.': a.diasEquivalentes,
+          Nota: a.nota || '',
+        }));
+
+      const mes = String(month + 1).padStart(2, '0');
+      await exportToExcel(`Resumen_${year}-${mes}.xlsx`, [
+        { name: `Resumen ${MESES[month]} ${year}`, rows: resumen },
+        { name: 'Detalle', rows: detalle },
+      ]);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="card">
-      <h2>Resumen mensual</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h2>Resumen mensual</h2>
+        <button
+          className="btn secondary small"
+          onClick={handleExport}
+          disabled={exporting || people.length === 0}
+        >
+          {exporting ? 'Exportando…' : '⬇ Exportar a Excel'}
+        </button>
+      </div>
 
       <div className="toolbar">
         <div className="field">
