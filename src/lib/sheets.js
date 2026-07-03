@@ -13,9 +13,25 @@ const TAB_CATEGORIAS = 'Categorias';
 // A:id  B:nombre  C:fecha  D:tipo  E:horas  F:categoria  G:nota  H:diasEquivalentes  I:createdAt
 const AUSENCIAS_RANGE = `${TAB_AUSENCIAS}!A2:I`;
 
+// Normaliza la clave privada para tolerar los errores más comunes al pegarla
+// en Vercel: comillas envolventes, saltos de línea escapados (\n) y espacios.
+function normalizePrivateKey(raw) {
+  if (!raw) return raw;
+  let k = raw.trim();
+  // Quitar comillas envolventes si el valor se pegó con ellas.
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+    k = k.slice(1, -1);
+  }
+  // Convertir secuencias escapadas (\r\n, \n, \r) en saltos de línea reales.
+  k = k.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+  // Normalizar posibles CRLF reales a LF.
+  k = k.replace(/\r\n/g, '\n');
+  return k;
+}
+
 function getAuth() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const key = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
+  const key = normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
   if (!email || !key) {
     throw new Error('Faltan GOOGLE_SERVICE_ACCOUNT_EMAIL o GOOGLE_PRIVATE_KEY');
   }
