@@ -29,11 +29,36 @@ function normalizePrivateKey(raw) {
   return k;
 }
 
+// Obtiene las credenciales. Método recomendado y a prueba de errores:
+// GOOGLE_CREDENTIALS_JSON con el contenido completo del archivo .json
+// (JSON.parse reconstruye la clave con sus saltos de línea correctos).
+// Alternativa: las variables separadas GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY.
+function getCredentials() {
+  const raw = process.env.GOOGLE_CREDENTIALS_JSON;
+  if (raw && raw.trim()) {
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.trim());
+    } catch (e) {
+      throw new Error('GOOGLE_CREDENTIALS_JSON no es un JSON válido: ' + e.message);
+    }
+    return {
+      email: parsed.client_email,
+      key: normalizePrivateKey(parsed.private_key),
+    };
+  }
+  return {
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim(),
+    key: normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY),
+  };
+}
+
 function getAuth() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
-  const key = normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+  const { email, key } = getCredentials();
   if (!email || !key) {
-    throw new Error('Faltan GOOGLE_SERVICE_ACCOUNT_EMAIL o GOOGLE_PRIVATE_KEY');
+    throw new Error(
+      'Faltan credenciales de Google. Configura GOOGLE_CREDENTIALS_JSON (recomendado) o GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY'
+    );
   }
   return new google.auth.JWT({
     email,
