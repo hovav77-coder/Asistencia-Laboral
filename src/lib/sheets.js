@@ -9,9 +9,8 @@ const TAB_AUSENCIAS = 'Ausencias';
 const TAB_EMPLEADOS = 'Empleados';
 const TAB_CATEGORIAS = 'Categorias';
 
-// Orden de columnas en la pestaña Ausencias (fila 1 = cabecera).
+// Orden de columnas en la pestaña Ausencias:
 // A:id  B:nombre  C:fecha  D:tipo  E:horas  F:categoria  G:nota  H:diasEquivalentes  I:createdAt
-const AUSENCIAS_RANGE = `${TAB_AUSENCIAS}!A2:I`;
 
 // Normaliza la clave privada para tolerar los errores más comunes al pegarla
 // en Vercel: comillas envolventes, saltos de línea escapados (\n) y espacios.
@@ -103,7 +102,9 @@ export async function getAbsences({ from, to } = {}) {
   const rows = res.data.values || [];
   let list = rows
     .map((row, i) => rowToAbsence(row, i + 1)) // fila real = índice + 1
-    .filter((a) => a.id && !isHeaderRow([a.id])); // ignora vacías y la cabecera
+    // Un registro válido tiene id, fecha y tipo. Así se ignoran filas vacías,
+    // la cabecera (id === 'id') y cualquier texto suelto (p. ej. "Ausencias" en A1).
+    .filter((a) => a.id && a.id.toLowerCase() !== 'id' && a.fecha && a.tipo);
 
   if (from) list = list.filter((a) => a.fecha >= from);
   if (to) list = list.filter((a) => a.fecha <= to);
@@ -134,11 +135,19 @@ export async function createAbsence(data) {
     createdAt,
   ]];
 
-  await sheets.spreadsheets.values.append({
+  // Colocación determinista: escribir en la primera fila libre (según la
+  // columna A). Evita el comportamiento impredecible de append() cuando la
+  // hoja tiene texto suelto o no tiene cabecera.
+  const colA = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: AUSENCIAS_RANGE,
+    range: `${TAB_AUSENCIAS}!A1:A`,
+  });
+  const targetRow = (colA.data.values || []).length + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${TAB_AUSENCIAS}!A${targetRow}:I${targetRow}`,
     valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'INSERT_ROWS',
     requestBody: { values },
   });
 
