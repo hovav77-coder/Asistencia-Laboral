@@ -120,8 +120,39 @@ export async function PUT(req) {
   if (err) return NextResponse.json({ error: err }, { status: 400 });
 
   try {
+    // Extender a un rango: el registro original pasa a ser el primer día
+    // y los días restantes se crean como registros nuevos.
+    if (body.fechaFin && body.fechaFin !== body.fecha) {
+      const fechas = buildDateRange(body.fecha, body.fechaFin, !!body.excluirFinde);
+      if (fechas === null) {
+        return NextResponse.json(
+          { error: 'Rango de fechas inválido (la fecha final debe ser posterior)' },
+          { status: 400 }
+        );
+      }
+      if (fechas === 'too_long') {
+        return NextResponse.json(
+          { error: `El rango no puede superar ${MAX_RANGO_DIAS} días` },
+          { status: 400 }
+        );
+      }
+      if (fechas.length === 0) {
+        return NextResponse.json(
+          { error: 'El rango no contiene ningún día (¿todo cae en fin de semana?)' },
+          { status: 400 }
+        );
+      }
+      const updated = await updateAbsence(body.id, { ...body, fecha: fechas[0] });
+      let created = 0;
+      if (fechas.length > 1) {
+        const r = await createAbsencesRange(body, fechas.slice(1));
+        created = r.created;
+      }
+      return NextResponse.json({ absence: updated, created });
+    }
+
     const updated = await updateAbsence(body.id, body);
-    return NextResponse.json({ absence: updated });
+    return NextResponse.json({ absence: updated, created: 0 });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

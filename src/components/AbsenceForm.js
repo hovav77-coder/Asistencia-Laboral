@@ -79,6 +79,7 @@ export default function AbsenceForm({
       setForm({
         nombre: editing.nombre || '',
         fecha: editing.fecha || '',
+        fechaFin: '',
         tipo: editing.tipo || 'completo',
         horas: editing.horas ?? '',
         categoria: editing.categoria || '',
@@ -87,6 +88,7 @@ export default function AbsenceForm({
     } else {
       setForm(emptyForm);
     }
+    setEsRango(false);
     setError('');
   }, [editing]);
 
@@ -103,7 +105,7 @@ export default function AbsenceForm({
     try {
       const payload = { ...form };
       if (editing) payload.id = editing.id;
-      if (!editing && esRango) {
+      if (esRango) {
         payload.excluirFinde = excluirFinde;
       } else {
         delete payload.fechaFin;
@@ -196,22 +198,21 @@ export default function AbsenceForm({
           </div>
           <div className="field">
             <label>
-              {esRango ? 'Desde' : 'Fecha'}
-              {!editing && (
-                <>
-                  {' '}
-                  <button
-                    type="button"
-                    className="link-btn"
-                    onClick={() => {
-                      setEsRango((v) => !v);
-                      set('fechaFin', '');
-                    }}
-                  >
-                    {esRango ? 'un solo día' : '+ varios días seguidos'}
-                  </button>
-                </>
-              )}
+              {esRango ? 'Desde' : 'Fecha'}{' '}
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setEsRango((v) => !v);
+                  set('fechaFin', '');
+                }}
+              >
+                {esRango
+                  ? 'un solo día'
+                  : editing
+                  ? '+ extender a más días'
+                  : '+ varios días seguidos'}
+              </button>
             </label>
             <input
               type="date"
@@ -222,7 +223,7 @@ export default function AbsenceForm({
           </div>
         </div>
 
-        {esRango && !editing && (
+        {esRango && (
           <div className="row">
             <div className="field">
               <label>Hasta (incluido)</label>
@@ -311,13 +312,20 @@ export default function AbsenceForm({
         </div>
 
         <p className="muted">
-          {esRango && !editing ? (
+          {esRango ? (
             <>
-              Se registrarán <span className="badge">{diasRango} día(s)</span>{' '}
-              — equivalente total:{' '}
+              {editing ? 'Este registro se extenderá a' : 'Se registrarán'}{' '}
+              <span className="badge">{diasRango} día(s)</span> — equivalente
+              total:{' '}
               <span className="badge">
                 {Math.round(dias * diasRango * 100) / 100} día(s)
               </span>
+              {editing && diasRango > 1 && (
+                <>
+                  {' '}
+                  (se actualiza este registro y se crean {diasRango - 1} nuevos)
+                </>
+              )}
             </>
           ) : (
             <>
@@ -330,10 +338,12 @@ export default function AbsenceForm({
           <button className="btn" type="submit" disabled={saving}>
             {saving
               ? 'Guardando…'
+              : esRango
+              ? editing
+                ? `Guardar ${diasRango || ''} día(s)`
+                : `Registrar ${diasRango || ''} día(s)`
               : editing
               ? 'Guardar cambios'
-              : esRango
-              ? `Registrar ${diasRango || ''} día(s)`
               : 'Registrar'}
           </button>
           {editing && (
